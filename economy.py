@@ -108,7 +108,7 @@ class Economy(commands.Cog):
                     balance = 0
                 new_balance = balance + 5
                 await ctx.send(
-                    "You harvested your Avocado tree and were able to earn 5 pits"
+                    "You harvested your Avocado tree and earned 5 pits"
                 )
                 await database.update("economy", "balance", new_balance, user.id)
                 await database.update(
@@ -193,7 +193,7 @@ class Economy(commands.Cog):
             )
         elif not payer_exists:
             await ctx.send(
-                "The person you were trying to transfer to didn't previously have a sack of pits, but they do now.\nRun the command again to pay them with pits."
+                "The person you're trying to transfer to didn't previously have a sack of pits, but they do now.\nRun the command again to pay them with pits."
             )
 
     # Sends an embed with the top twenty users ordered by total balance

@@ -5,6 +5,8 @@ from discord.ext.tasks import loop
 from discord_slash import SlashCommand
 
 import asyncio
+import sys
+
 
 
 
@@ -130,10 +132,39 @@ async def reaction_report(message, reporter: discord.User, reported: discord.Use
         pass
 
 
+# Help command
+@slash.slash(
+    name="help",
+    description="List the bot's commands.",
+)
+async def help_slash(ctx):
+    await _help(ctx)
+
+@bot.command()
+async def help(ctx):
+    await _help(ctx)
+    await ctx.trigger_typing()
+
+async def _help(ctx):
+    embed = discord.Embed(
+        title="Commands",
+        description="""- **Help** Show this message
+        - **Exp** Display a user's EXP.
+        - **Level** Display a user's current levels and progress.
+        - **Top** Show the server's EXP leaderboard.
+        - **Bal** Display the amount of pits in a user's sack.
+        - **Harvest** Pick fresh Avocados and harvest their pits.
+        - **Pay** Pay another user with pits.
+        - **Baltop** Show the server's Balance leaderboard.
+        """
+    )
+
+    await ctx.send(embed=embed)
+
 
 
 # dono_monitor.start()
 bot.load_extension("leveler")
 bot.load_extension("economy")
 # bot.load_extension("uno")
-bot.run("Njk3NjE1MzQxMDUxODM4NDc1.Xo526g.p9rWXTbh7NIXLDX5bQRzQ9hHBNI")
+bot.run(str(sys.argv[1]))
