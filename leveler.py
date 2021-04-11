@@ -90,6 +90,10 @@ class Leveler(commands.Cog):
 
             # Award EXP to each user
             if len(eligible_ids) >= 3:
+                
+                #Calculate the xp multiplier
+                mutli = (len(eligible_ids) - 2)**(0.25) + 1
+
                 for user_id in eligible_ids:
                     if await database.look_for_user(user.id, "exp"):
 
@@ -97,7 +101,7 @@ class Leveler(commands.Cog):
 
                         # Award EXP
                         prev_exp = await database.retrieve("exp", "voice", user_id)
-                        new_exp = prev_exp + random.randint(10, 20)
+                        new_exp = prev_exp + (random.randint(5, 15) * mutli)
                         await database.update("exp", "voice", new_exp, user_id)
 
                         # Adjust level if need to
@@ -111,7 +115,7 @@ class Leveler(commands.Cog):
                                 "exp", "voice_level", calculated_level, user_id
                             )
                             await self.level_spam.send(
-                                f"{user.mention} reached **Voice Level {calculated_level}**!"
+                                f"{user.mention} has reached a new **Voice Level**! [`{prev_level}`]->[`{calculated_level}`]"
                             )
 
                         await self.check_levelroles(user)
@@ -120,28 +124,6 @@ class Leveler(commands.Cog):
     @vc_monitor.before_loop
     async def vc_monitor_before(self):
         await self.bot.wait_until_ready()
-
-
-    # Returns false if the user didn't previously have an entry and makes an extry for them, returns true if they did
-    # async def look_for_user_in_db(self, user_id):
-    #     db = await aiosqlite.connect("main.db")
-    #     cursor = await db.execute(
-    #         f"SELECT EXISTS(SELECT 1 FROM exp WHERE user_id = {user_id})"
-    #     )
-    #     tupled = await cursor.fetchone()
-    #     if tupled[0] == 0:  
-    #         # user_id text voice prev_message_time text_level voice_level total_exp total_level
-    #         await db.execute(
-    #             f"INSERT INTO exp VALUES ({user_id}, 0, 0, 0, 0, 0, 0, 0)"
-    #         )
-    #         await db.commit()
-    #         await cursor.close()
-    #         await db.close()
-    #         return False
-    #     else:
-    #         await cursor.close()
-    #         await db.close()
-    #         return True
 
 
     # Basic equations for caluclating level
@@ -178,7 +160,7 @@ class Leveler(commands.Cog):
                 try:
                     await member.add_roles(needed_role, reason="Leveled Up")
                     await self.level_spam.send(
-                        f"{user.mention} has just reached **Total {needed_role.name}** and was rewarded with a role!"
+                        f"{user.mention} has reached **Total {needed_role.name}** and was rewarded with a role!"
                     )
                 except discord.HTTPException:
                     print("Assigning roles rate limited")
@@ -224,7 +206,7 @@ class Leveler(commands.Cog):
 
                 # Award EXP
                 prev_exp = await database.retrieve("exp", "text", user.id)
-                new_exp = prev_exp + random.randint(10, 20)
+                new_exp = prev_exp + random.randint(15, 25)
                 await database.update("exp", "text", new_exp, user.id)
                 await database.update("exp", "prev_message_time", int(time.time()), user.id)
 
@@ -236,7 +218,7 @@ class Leveler(commands.Cog):
                 if calculated_level != prev_level:
                     await database.update("exp", "text_level", calculated_level, user.id)
                     await self.level_spam.send(
-                        f"{ctx.author.mention} reached **Text Level {calculated_level}**!"
+                        f"{ctx.author.mention} has reached a new **Text Level**! [`{prev_level}`]->[`{calculated_level}`]"
                     )
 
                 await self.check_levelroles(user)
@@ -396,14 +378,14 @@ class Leveler(commands.Cog):
                     "That person wasn't registered in the database previously, but they are now.\nRun the command again to see their exp."
                 )
 
-    # Sends an embed with the top ten users ordered by total exp
+    # Sends an embed with the top twenty users ordered by total expCommand raised an exception: AttributeError: 'Economy' object has no attribute 'avo_cult'
     @cog_ext.cog_slash(
         name="top",
-        description="Display a user's EXP.",
+        description="Show the server's EXP leaderboard.",
         options=[
             create_option(
                 name="page",
-                description="Show the server leaderboard.",
+                description="The page you want to view",
                 option_type=4,
                 required=False,
             )
@@ -422,36 +404,9 @@ class Leveler(commands.Cog):
         page -= 1
         if page < 0:
             message = await ctx.send("Invalid page")
-            await asyncio.sleep(3)
+            await asyncio.sleep(7)
             await message.delete()
             return
-
-        # # Connect to the database and select every row
-        # db = await aiosqlite.connect("main.db")
-        # cursor = await db.execute("SELECT Count(*) FROM exp")
-
-        # # Get the maximum amound of entries
-        # max = await cursor.fetchone()
-        # max = max[0]
-        
-        # lower_limit = page * 20
-        # upper_limit = lower_limit + 20
-        # if upper_limit > max:
-        #     upper_limit = max
-        # if lower_limit > max:
-        #     # Replace this with an actual error raise
-        #     await ctx.send("Invalid page.")
-        #     return
-
-        # cursor = await db.execute(
-        #     f"SELECT user_id,total_exp FROM exp ORDER BY total_exp DESC LIMIT {lower_limit},{20}"
-        # )
-        
-        # await cursor.close()
-        # await db.close()
-
-        # Replace this with a call to the database class
-        #rows = await cursor.fetchall()
         
         rows = await database.top("total_exp", "exp", page, ctx)
 
@@ -482,7 +437,7 @@ class Leveler(commands.Cog):
         descript = descript + "```"
 
         embed = discord.Embed(
-            title=f"{self.avo_cult.name} temp top 20", description=descript
+            title=f"{self.avo_cult.name} EXP leaderboard", description=descript
         )
         embed.set_footer(
             text=f"Page {page + 1} - Type /top {page + 2} to get page {page + 2} of the leaderboard"

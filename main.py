@@ -11,7 +11,8 @@ import asyncio
 # intents = discord.Intents(members=True)
 bot = commands.Bot(command_prefix="$")
 bot.remove_command("help")
-slash = SlashCommand(bot, sync_commands=True)
+slash = SlashCommand(bot, sync_commands=False)
+print("Remember to renable sync_commands when you add a new slash command")
 
 # The only Guild the bot will work with
 avo_cult = None
@@ -84,7 +85,7 @@ async def on_command_error(ctx, error):
     #     await message.delete()
     # else:
     message = await ctx.send(error)
-    await asyncio.sleep(3)
+    await asyncio.sleep(7)
     await message.delete()
 
 
@@ -134,4 +135,5 @@ async def reaction_report(message, reporter: discord.User, reported: discord.Use
 # dono_monitor.start()
 bot.load_extension("leveler")
 bot.load_extension("economy")
+# bot.load_extension("uno")
 bot.run("Njk3NjE1MzQxMDUxODM4NDc1.Xo526g.p9rWXTbh7NIXLDX5bQRzQ9hHBNI")

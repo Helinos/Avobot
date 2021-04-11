@@ -77,7 +77,7 @@ class Database():
             return
 
         cursor = await self.db.execute(
-            f"SELECT user_id,{column} FROM {table} ORDER BY total_exp DESC LIMIT {lower_limit},{20}"
+            f"SELECT user_id,{column} FROM {table} ORDER BY {column} DESC LIMIT {lower_limit},{20}"
         )
         rows = await cursor.fetchall()
         await cursor.close()
