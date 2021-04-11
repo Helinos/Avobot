@@ -1,38 +1,22 @@
-from main import sql_update, sql_retrieve
+from database import Database
 
 import discord
 from discord.ext import commands
 from discord_slash import cog_ext
 from discord_slash.utils.manage_commands import create_option
 
-import aiosqlite
 import time
 
+database = None
 
 class Economy(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def look_for_user_in_db(self, user_id):
-        db = await aiosqlite.connect("main.db")
-        cursor = await db.execute(
-            f"SELECT EXISTS(SELECT 1 FROM economy WHERE user_id = {user_id})"
-        )
-        tupled = await cursor.fetchone()
-        if tupled[0] == 0:
-            # user_id balance prev_harvest_time
-            await db.execute(
-                f"INSERT INTO economy VALUES ({user_id}, 0, 0)"
-            )
-            await db.commit()
-            await cursor.close()
-            await db.close()
-            return False
-        else:
-            await cursor.close()
-            await db.close()
-            return True
-
+    @commands.Cog.listener()
+    async def on_ready(self):
+        global database
+        database = await Database()
 
     @cog_ext.cog_slash(
         name="bal",
@@ -63,8 +47,8 @@ class Economy(commands.Cog):
         if user == None:
             return
 
-        if await self.look_for_user_in_db(user.id):
-            balance = await sql_retrieve("economy", "balance", user.id)
+        if await database.look_for_user(user.id, "economy"):
+            balance = await database.retrieve("economy", "balance", user.id)
             
             if balance == None:
                 balance = 0
@@ -104,18 +88,27 @@ class Economy(commands.Cog):
 
     async def _harvest(self, ctx):
         user = ctx.author
-        prev_harvest_time = await sql_retrieve("economy", "prev_harvest_time", user.id)
+        prev_harvest_time = await database.retrieve("economy", "prev_harvest_time", user.id)
         since_harvest = (int(time.time()) - int(prev_harvest_time))
         if since_harvest > 86400:
-            balance = await sql_retrieve("economy", "balance", user.id)
+            balance = await database.retrieve("economy", "balance", user.id)
             if balance == None:
                 balance = 0
             new_balance = balance + 5
             await ctx.send("You harvested your Avocado tree and were able to earn 5 pits")
-            await sql_update("economy", "balance", new_balance, user.id)
-            await sql_update("economy", "prev_harvest_time", int(time.time()), user.id)
+            await database.update("economy", "balance", new_balance, user.id)
+            await database.update("economy", "prev_harvest_time", int(time.time()), user.id)
         else:
-            await ctx.send(f"You Avocados aren't done growing yet! Check back in {86400 - since_harvest} seconds.")
+            th_sec = 86400 - since_harvest
+            th_min = th_sec // 60
+            th_hour = th_min // 60
+            if th_hour == 0:
+                delta = f"{th_min} minutes"
+            elif th_min == 0:
+                delta = f"{th_min} seconds"
+            else:
+                delta = f"{th_hour} hours"
+            await ctx.send(f"You Avocados aren't done growing yet! Check back in {delta}.")
 
 def setup(bot):
     bot.add_cog(Economy(bot))

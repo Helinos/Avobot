@@ -1,4 +1,4 @@
-from main import sql_update, sql_retrieve
+from database import Database
 
 import discord
 from discord.ext import commands
@@ -8,9 +8,11 @@ from discord_slash.utils.manage_commands import create_option
 
 import random
 import asyncio
-import aiosqlite
 import math
 import time
+from asyncinit import asyncinit
+
+database = None
 
 class Leveler(commands.Cog):
     def __init__(self, bot):
@@ -39,7 +41,7 @@ class Leveler(commands.Cog):
         self.booster = None
         self.booster_id = 826191768797184030
 
-        # Voice Channels list filled in OnReady()
+        # Voice Channels list filled in on_ready()
         self.voice_channels = None
 
         # Hardcoded Level Roles
@@ -89,23 +91,23 @@ class Leveler(commands.Cog):
             # Award EXP to each user
             if len(eligible_ids) >= 3:
                 for user_id in eligible_ids:
-                    if await self.look_for_user_in_db(user_id):
+                    if await database.look_for_user(user.id, "exp"):
 
                         user = await self.bot.fetch_user(user_id)
 
                         # Award EXP
-                        prev_exp = await sql_retrieve("exp", "voice", user_id)
+                        prev_exp = await database.retrieve("exp", "voice", user_id)
                         new_exp = prev_exp + random.randint(10, 20)
-                        await sql_update("exp", "voice", new_exp, user_id)
+                        await database.update("exp", "voice", new_exp, user_id)
 
                         # Adjust level if need to
                         prev_level = 0
-                        prev_level = await sql_retrieve("exp", "voice_level", user_id)
+                        prev_level = await database.retrieve("exp", "voice_level", user_id)
                         if prev_level == None:
                             prev_level = 0
                         calculated_level = await self.level_from_exp(new_exp)
                         if calculated_level != prev_level:
-                            await sql_update(
+                            await database.update(
                                 "exp", "voice_level", calculated_level, user_id
                             )
                             await self.level_spam.send(
@@ -119,27 +121,27 @@ class Leveler(commands.Cog):
     async def vc_monitor_before(self):
         await self.bot.wait_until_ready()
 
-    # Returns false if the user didn't previously have an entry and makes an extry for them, returns true if they did
-    async def look_for_user_in_db(self, user_id):
-        db = await aiosqlite.connect("main.db")
-        cursor = await db.execute(
-            f"SELECT EXISTS(SELECT 1 FROM exp WHERE user_id = {user_id})"
-        )
-        tupled = await cursor.fetchone()
-        if tupled[0] == 0:  
-            # user_id text voice prev_message_time text_level voice_level total_exp total_level
-            await db.execute(
-                f"INSERT INTO exp VALUES ({user_id}, 0, 0, 0, 0, 0, 0, 0)"
-            )
-            await db.commit()
-            await cursor.close()
-            await db.close()
-            return False
-        else:
-            await cursor.close()
-            await db.close()
-            return True
 
+    # Returns false if the user didn't previously have an entry and makes an extry for them, returns true if they did
+    # async def look_for_user_in_db(self, user_id):
+    #     db = await aiosqlite.connect("main.db")
+    #     cursor = await db.execute(
+    #         f"SELECT EXISTS(SELECT 1 FROM exp WHERE user_id = {user_id})"
+    #     )
+    #     tupled = await cursor.fetchone()
+    #     if tupled[0] == 0:  
+    #         # user_id text voice prev_message_time text_level voice_level total_exp total_level
+    #         await db.execute(
+    #             f"INSERT INTO exp VALUES ({user_id}, 0, 0, 0, 0, 0, 0, 0)"
+    #         )
+    #         await db.commit()
+    #         await cursor.close()
+    #         await db.close()
+    #         return False
+    #     else:
+    #         await cursor.close()
+    #         await db.close()
+    #         return True
 
 
     # Basic equations for caluclating level
@@ -152,13 +154,13 @@ class Leveler(commands.Cog):
     # Check what roles the user has, what roles the user should have, and give the user any missing roles
     async def check_levelroles(self, user):
 
-        text_exp = await sql_retrieve("exp", "text", user.id)
-        voice_exp = await sql_retrieve("exp", "voice", user.id)
+        text_exp = await database.retrieve("exp", "text", user.id)
+        voice_exp = await database.retrieve("exp", "voice", user.id)
 
         total_exp = text_exp + voice_exp
         total_level = await self.level_from_exp(total_exp)
-        await sql_update("exp", "total_exp", total_exp, user.id)
-        await sql_update("exp", "total_level", total_level, user.id)
+        await database.update("exp", "total_exp", total_exp, user.id)
+        await database.update("exp", "total_level", total_level, user.id)
 
         member = await self.avo_cult.fetch_member(user.id)
 
@@ -203,32 +205,36 @@ class Leveler(commands.Cog):
         ]
 
         self.level_spam = self.bot.get_channel(self.level_spam_id)
+        
+        global database
+        database = await Database()
+
 
     # Award EXP for sending a message every minute and make sure commands are only done in #other-bots
     @commands.Cog.listener()
     async def on_message(self, ctx):
         user = ctx.author
-        if await self.look_for_user_in_db(user.id) and not user.bot:
+        if await database.look_for_user(user.id, "exp") and not user.bot:
             # On message send get the time of the last message
-            prev_message_time = await sql_retrieve("exp", "prev_message_time", user.id)
+            prev_message_time = await database.retrieve("exp", "prev_message_time", user.id)
             if prev_message_time == None:
                 prev_message_time = 0
             # See if it's been a minute since the last message
             if (int(time.time()) - int(prev_message_time)) > 120:
 
                 # Award EXP
-                prev_exp = await sql_retrieve("exp", "text", user.id)
+                prev_exp = await database.retrieve("exp", "text", user.id)
                 new_exp = prev_exp + random.randint(10, 20)
-                await sql_update("exp", "text", new_exp, user.id)
-                await sql_update("exp", "prev_message_time", int(time.time()), user.id)
+                await database.update("exp", "text", new_exp, user.id)
+                await database.update("exp", "prev_message_time", int(time.time()), user.id)
 
                 # Adjust level if need to
-                prev_level = await sql_retrieve("exp", "text_level", user.id)
+                prev_level = await database.retrieve("exp", "text_level", user.id)
                 if prev_level == None:
                     prev_level = 0
                 calculated_level = await self.level_from_exp(new_exp)
                 if calculated_level != prev_level:
-                    await sql_update("exp", "text_level", calculated_level, user.id)
+                    await database.update("exp", "text_level", calculated_level, user.id)
                     await self.level_spam.send(
                         f"{ctx.author.mention} reached **Text Level {calculated_level}**!"
                     )
@@ -264,11 +270,11 @@ class Leveler(commands.Cog):
         if user == None:
             return
 
-        if await self.look_for_user_in_db(user.id):
-            text_level = await sql_retrieve("exp", "text_level", user.id)
-            voice_level = await sql_retrieve("exp", "voice_level", user.id)
-            text_exp = await sql_retrieve("exp", "text", user.id)
-            voice_exp = await sql_retrieve("exp", "voice", user.id)
+        if await database.look_for_user(user.id, "exp"):
+            text_level = await database.retrieve("exp", "text_level", user.id)
+            voice_level = await database.retrieve("exp", "voice_level", user.id)
+            text_exp = await database.retrieve("exp", "text", user.id)
+            voice_exp = await database.retrieve("exp", "voice", user.id)
 
             if text_level == None:
                 text_level = 0
@@ -360,9 +366,9 @@ class Leveler(commands.Cog):
         if user == None:
             ctx.send("Invalid user.")
 
-        if await self.look_for_user_in_db(user.id):
-            text_exp = await sql_retrieve("exp", "text", user.id)
-            voice_exp = await sql_retrieve("exp", "voice", user.id)
+        if await database.look_for_user(user.id, "exp"):
+            text_exp = await database.retrieve("exp", "text", user.id)
+            voice_exp = await database.retrieve("exp", "voice", user.id)
 
             total = "{:,}".format(text_exp + voice_exp)
             text_exp = "{:,}".format(text_exp)
@@ -420,31 +426,38 @@ class Leveler(commands.Cog):
             await message.delete()
             return
 
-        db = await aiosqlite.connect("main.db")
-        cursor = await db.execute("SELECT Count(*) FROM exp")
+        # # Connect to the database and select every row
+        # db = await aiosqlite.connect("main.db")
+        # cursor = await db.execute("SELECT Count(*) FROM exp")
 
-        max = await cursor.fetchone()
-        max = max[0]
-        lower_limit = page * 20
-        upper_limit = lower_limit + 20
-        if upper_limit > max:
-            upper_limit = max
-        if lower_limit > max:
-            await ctx.send("Invalid page.")
-            return
+        # # Get the maximum amound of entries
+        # max = await cursor.fetchone()
+        # max = max[0]
+        
+        # lower_limit = page * 20
+        # upper_limit = lower_limit + 20
+        # if upper_limit > max:
+        #     upper_limit = max
+        # if lower_limit > max:
+        #     # Replace this with an actual error raise
+        #     await ctx.send("Invalid page.")
+        #     return
 
-        # Originally I used upper_limit the second time, but it turns out that's not how the LIMIT argument works
-        cursor = await db.execute(
-            f"SELECT user_id,total_exp FROM exp ORDER BY total_exp DESC LIMIT {lower_limit},{20}"
-        )
-        rows = await cursor.fetchall()
+        # cursor = await db.execute(
+        #     f"SELECT user_id,total_exp FROM exp ORDER BY total_exp DESC LIMIT {lower_limit},{20}"
+        # )
+        
+        # await cursor.close()
+        # await db.close()
 
-        await cursor.close()
-        await db.close()
+        # Replace this with a call to the database class
+        #rows = await cursor.fetchall()
+        
+        rows = await database.top("total_exp", "exp", page, ctx)
 
         descript = "```"
 
-        counter = lower_limit + 1
+        counter = page * 20 + 1
         for combo in rows:
             user = await self.bot.fetch_user(combo[0])
             space = 40 - len(user.name) - len(str(combo[1]))
@@ -467,7 +480,6 @@ class Leveler(commands.Cog):
             counter += 1
 
         descript = descript + "```"
-        prefix = await self.bot.get_prefix(ctx)
 
         embed = discord.Embed(
             title=f"{self.avo_cult.name} temp top 20", description=descript
@@ -482,10 +494,10 @@ class Leveler(commands.Cog):
     @commands.is_owner()
     async def addexp(self, ctx, member: discord.Member, exp: int):
         await ctx.trigger_typing()
-        if await self.look_for_user_in_db(member.id):
-            old_exp = await sql_retrieve("exp", "text", member.id)
+        if await database.look_for_user(member.id, "exp"):
+            old_exp = await database.retrieve("exp", "text", member.id)
             new_exp = old_exp + exp
-            await sql_update("exp", "text", new_exp, member.id)
+            await database.update("exp", "text", new_exp, member.id)
             await ctx.send(f"{member.name} now has {new_exp} Text EXP")
         else:
             await ctx.send(

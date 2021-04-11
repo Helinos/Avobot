@@ -5,8 +5,6 @@ from discord.ext.tasks import loop
 from discord_slash import SlashCommand
 
 import asyncio
-import aiosqlite
-
 
 
 
@@ -49,9 +47,8 @@ async def on_message(ctx):
 
     # Look for ban emoji
     if "<:zBan:818051501020151818>" in ctx.content and not user.bot:
-        context = ctx
         await ctx.delete()
-        await reaction_report(context, context.author)
+        await reaction_report(ctx, ctx.author)
 
     if ctx.channel.id in [698795649054933032, 557869986895495180]:
         await bot.process_commands(ctx)
@@ -74,18 +71,21 @@ async def on_ready():
     #boosted = avo_cult.get_role(boosted_role_id)
 
 
-# Error handler for when users send commands too fast
+# Error handler
 @bot.event
 async def on_command_error(ctx, error):
-    if isinstance(error, commands.CommandOnCooldown):
-        await ctx.trigger_typing()
-        message = await ctx.send(
-            f"**Cool down!** Wait for just **{int(error.retry_after)}** seconds before you send the next command, okay?"
-        )
-        await asyncio.sleep(int(error.retry_after))
-        await message.delete()
-    else:
-        await ctx.send(error)
+    # TODO: Cooldowns were broken by implmenting slash commands, waiting for slash commands to update
+    # if isinstance(error, commands.CommandOnCooldown):
+    #     await ctx.trigger_typing()
+    #     message = await ctx.send(
+    #         f"**Cool down!** Wait for just **{int(error.retry_after)}** seconds before you send the next command, okay?"
+    #     )
+    #     await asyncio.sleep(int(error.retry_after))
+    #     await message.delete()
+    # else:
+    message = await ctx.send(error)
+    await asyncio.sleep(3)
+    await message.delete()
 
 
 # Ban reaction listener
@@ -128,32 +128,7 @@ async def reaction_report(message, reporter: discord.User, reported: discord.Use
     except Forbidden:
         pass
 
-# Retrieve a value from the database
-async def sql_retrieve(table: str, coloumn: str, user_id: int):
-    db = await aiosqlite.connect("main.db")
-    cursor = await db.execute(
-        f"SELECT {coloumn} FROM {table} WHERE user_id = {user_id}"
-    )
-    try:
-        tupled = await cursor.fetchone()
-        value = tupled[0]
-        await cursor.close()
-        await db.close()
-        return value
-    except TypeError:
-        print(f"Getting the value of {coloumn} from {user_id} returned a NoneType.")
-        await cursor.close()
-        await db.close()
-        return None
 
-# Update a value in the database
-async def sql_update(table: str, coloumn: str, value: int, user_id: int):
-    db = await aiosqlite.connect("main.db")
-    await db.execute(
-        f"UPDATE {table} SET {coloumn} = {value} WHERE user_id = {user_id}"
-    )
-    await db.commit()
-    await db.close()
 
 
 # dono_monitor.start()
