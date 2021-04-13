@@ -101,7 +101,7 @@ class Leveler(commands.Cog):
 
                         # Award EXP
                         prev_exp = await database.retrieve("exp", "voice", user_id)
-                        new_exp = prev_exp + (random.randint(5, 15) * mutli)
+                        new_exp = math.floor(prev_exp + (random.randint(5, 15) * mutli))
                         await database.update("exp", "voice", new_exp, user_id)
 
                         # Adjust level if need to
@@ -115,7 +115,7 @@ class Leveler(commands.Cog):
                                 "exp", "voice_level", calculated_level, user_id
                             )
                             await self.level_spam.send(
-                                f"{user.mention} has reached a new **Voice Level**! [`{prev_level}`]->[`{calculated_level}`]"
+                                f"{user.mention} has reached a new **Voice Level**! `{prev_level}`->`{calculated_level}`"
                             )
 
                         await self.check_levelroles(user)
@@ -218,7 +218,7 @@ class Leveler(commands.Cog):
                 if calculated_level != prev_level:
                     await database.update("exp", "text_level", calculated_level, user.id)
                     await self.level_spam.send(
-                        f"{ctx.author.mention} has reached a new **Text Level**! [`{prev_level}`]->[`{calculated_level}`]"
+                        f"{ctx.author.mention} has reached a new **Text Level**! `{prev_level}`->`{calculated_level}`"
                     )
 
                 await self.check_levelroles(user)
@@ -437,7 +437,7 @@ class Leveler(commands.Cog):
         descript = descript + "```"
 
         embed = discord.Embed(
-            title=f"{self.avo_cult.name} EXP leaderboard", description=descript
+            title=f"{self.avo_cult.name} EXP leaderboard", description=descript, color=discord.Color(0xFF00FF)
         )
         embed.set_footer(
             text=f"Page {page + 1} - Type /top {page + 2} to get page {page + 2} of the leaderboard"

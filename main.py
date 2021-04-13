@@ -75,20 +75,20 @@ async def on_ready():
 
 
 # Error handler
-@bot.event
-async def on_command_error(ctx, error):
-    # TODO: Cooldowns were broken by implmenting slash commands, waiting for slash commands to update
-    # if isinstance(error, commands.CommandOnCooldown):
-    #     await ctx.trigger_typing()
-    #     message = await ctx.send(
-    #         f"**Cool down!** Wait for just **{int(error.retry_after)}** seconds before you send the next command, okay?"
-    #     )
-    #     await asyncio.sleep(int(error.retry_after))
-    #     await message.delete()
-    # else:
-    message = await ctx.send(error)
-    await asyncio.sleep(7)
-    await message.delete()
+# @bot.event
+# async def on_command_error(ctx, error):
+#     # TODO: Cooldowns were broken by implmenting slash commands, waiting for slash commands to update
+#     # if isinstance(error, commands.CommandOnCooldown):
+#     #     await ctx.trigger_typing()
+#     #     message = await ctx.send(
+#     #         f"**Cool down!** Wait for just **{int(error.retry_after)}** seconds before you send the next command, okay?"
+#     #     )
+#     #     await asyncio.sleep(int(error.retry_after))
+#     #     await message.delete()
+#     # else:
+#     message = await ctx.send(error)
+#     await asyncio.sleep(7)
+#     await message.delete()
 
 
 # Ban reaction listener

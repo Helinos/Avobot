@@ -162,6 +162,14 @@ class Economy(commands.Cog):
 
         payer = ctx.author
         payee = user
+        if payee == payer:
+            message = await ctx.send(
+                "You can't pay yourself..."
+            )
+            await asyncio.sleep(7)
+            await message.delete()
+            return
+
         payee_exists = await database.look_for_user(payer.id, "economy")
         payer_exists = await database.look_for_user(payee.id, "economy")
 
@@ -170,9 +178,16 @@ class Economy(commands.Cog):
             payer_balance = await database.retrieve("economy", "balance", payer.id)
             payee_balance = await database.retrieve("economy", "balance", payee.id)
 
-            if payer_balance >= amount:
+            if payer_balance >= amount and amount > 0:
                 new_payer_balance = payer_balance - amount
                 new_payee_balance = payee_balance + amount
+            elif amount <= 0:
+                message = await ctx.send(
+                    "Nice try buddy ;)"
+                )
+                await asyncio.sleep(7)
+                await message.delete()
+                return
             else:
                 message = await ctx.send(
                     "You're trying to pay more pits than you have!"
@@ -195,6 +210,7 @@ class Economy(commands.Cog):
             await ctx.send(
                 "The person you're trying to transfer to didn't previously have a sack of pits, but they do now.\nRun the command again to pay them with pits."
             )
+
 
     # Sends an embed with the top twenty users ordered by total balance
     @cog_ext.cog_slash(
@@ -255,7 +271,7 @@ class Economy(commands.Cog):
         descript = descript + "```"
 
         embed = discord.Embed(
-            title=f"{self.avo_cult.name} balance leaderboard", description=descript
+            title=f"{self.avo_cult.name} balance leaderboard", description=descript, color=discord.Color(0x00FF00)
         )
         embed.set_footer(
             text=f"Page {page + 1} - Type /baltop {page + 2} to get page {page + 2} of the leaderboard"
