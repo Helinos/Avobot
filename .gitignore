@@ -1,0 +1,16 @@
+# venv stuff
+venv
+__pycache__
+
+# Bot launching stuff
+Avobot.bat
+run.ps1
+
+# Databases and backups
+main.db
+main backup.db
+mainbackup1.py
+mainbackup2.py
+
+# Stuff being worked on
+# uno.py

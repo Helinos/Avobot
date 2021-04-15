@@ -42,6 +42,9 @@ report_channel_id = 785738570207068191
 # async def dono_monitor_before():
 #     await bot.wait_until_ready()
 
+venting_warning = None
+venting_text = "**[Disclaimer]** **What happens in venting stays in venting** - Please try to keep discussion in here serious, and keep any thing discussed in venting in venting. `Expanded on in Rule 10` <a:ReadTheRules:831975084784353310>"
+
 
 # Watch for people sending the Ban emote
 @bot.event
@@ -53,8 +56,17 @@ async def on_message(ctx):
         await ctx.delete()
         await reaction_report(ctx, ctx.author)
 
+    # Relegate commands to #other-bots and #moderator-only
     if ctx.channel.id in [698795649054933032, 557869986895495180]:
         await bot.process_commands(ctx)
+    
+    # Post the warning in #venting
+    global venting_warning
+    if ctx.channel.id == 782066186871504906 and not ctx.author.bot:
+        if venting_warning != None:
+            await venting_warning.delete()
+        venting_warning = await ctx.channel.send(venting_text)
+
 
 
 @bot.event
@@ -166,5 +178,5 @@ async def _help(ctx):
 # dono_monitor.start()
 bot.load_extension("leveler")
 bot.load_extension("economy")
-# bot.load_extension("uno")
+bot.load_extension("uno")
 bot.run(str(sys.argv[1]))
