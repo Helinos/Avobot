@@ -119,11 +119,11 @@ class Economy(commands.Cog):
                 th_min = th_sec // 60
                 th_hour = th_min // 60
                 if th_hour == 0:
-                    delta = f"{th_min} minutes"
+                    delta = f"{th_min} minute(s)"
                 elif th_min == 0:
-                    delta = f"{th_min} seconds"
+                    delta = f"{th_min} second(s)"
                 else:
-                    delta = f"{th_hour} hours"
+                    delta = f"{th_hour} hour(s)"
                 await ctx.send(
                     f"Your Avocados aren't done growing yet! Check back in {delta}."
                 )
