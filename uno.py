@@ -18,7 +18,7 @@ Settings:
 from discord.ext import commands
 import discord
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import random
 import asyncio
 
@@ -26,19 +26,22 @@ import asyncio
 @dataclass
 class Player:
     user: discord.User
-    hand: list
+    hand: list = field(default_factory=list)
 
 
 @dataclass
 class GameTracker:
     # type: str
-    players: list
-    kick_list: list
-    deck: list
-    s_channel: discord.TextChannel
-    h_channels: list
-    reversed: bool
-    current_turn: int
+    players: list = field(default_factory=list)
+    kick_list: list = field(default_factory=list)
+    deck = None
+    s_channel: discord.TextChannel = None
+    h_channels: list = field(default_factory=list)
+    reversed: bool = False
+    current_turn: int = -1
+    settings: dict = field(default_factory=dict)
+    skipping: bool = False
+
 
 @dataclass
 class Card:
@@ -145,7 +148,7 @@ emoji_colors = {
     "yellow": yellow_emojis,
     "action": action_emojis,
 }
-
+        
 
 games = []
 
@@ -177,12 +180,19 @@ class Uno(commands.Cog):
             # If there's a None lobby, make the id the index of that lobby
             if games[n] == None:
                 id = n
-                games[id] = GameTracker([], [], [], None, [], False, -1)
+                # games[id] = GameTracker([], [], [], None, [], False, -1)
+                games[id] = GameTracker()
                 break
         # Otherwise get the id for a new lobby
         if id == None:
             id = len(games)
-            games.append(GameTracker([], [], [], None, [], False, -1))
+            # games.append(GameTracker([], [], [], None, [], False, -1))
+            games.append(GameTracker())
+
+        games[id].settings = {
+            "decktype": "single",
+            "bluffing": True,
+        }
 
         await self.public_lobby(ctx, id)
 
@@ -225,7 +235,7 @@ class Uno(commands.Cog):
     # A lobby that anyone can join
     async def public_lobby(self, ctx, id):
         # Add the user starting the lobby to players
-        games[id].players.append(Player(ctx.author, []))
+        games[id].players.append(Player(ctx.author))
 
         # Lobby Embed
         embed = discord.Embed(
@@ -235,7 +245,7 @@ class Uno(commands.Cog):
         )
         embed.set_thumbnail(url="https://i.imgur.com/iRPiwm3.png")
         embed.set_footer(
-            text="✅ Join.\n🆗 Everybody's in.\n🔨 Kick.\n🔀 Shuffle players.\n🛑 Close."
+            text="✅ Join.\n🆗 Everybody's in.\n🔨 Kick.\n🔀 Shuffle players.\n⚙️ Settings.\n🛑 Close."
         )
 
         lobby_message = await ctx.send(embed=embed)
@@ -243,13 +253,17 @@ class Uno(commands.Cog):
         await lobby_message.add_reaction("🆗")
         await lobby_message.add_reaction("🔨")
         await lobby_message.add_reaction("🔀")
+        await lobby_message.add_reaction("⚙️")
         await lobby_message.add_reaction("🛑")
 
         # Listen for people reacting to join the lobby
         def check(reaction, user):
             return (
                 str(reaction.emoji) == "✅"
-                or (user == ctx.author and str(reaction.emoji) in ["🆗", "🛑", "🔨", "🔀"])
+                or (
+                    user == ctx.author
+                    and str(reaction.emoji) in ["🆗", "🛑", "🔨", "🔀", "⚙️"]
+                )
             ) and reaction.message == lobby_message
 
         waiting = True
@@ -264,9 +278,15 @@ class Uno(commands.Cog):
                     and user != ctx.author
                     and not user in (games[id].players + games[id].kick_list)
                 ):
-                    games[id].players.append(Player(user, []))
-                    embed.description = await self.player_list(games[id].players)
-                    await lobby_message.edit(embed=embed)
+                    joinable = True
+                    for player in games[id].players:
+                        if player.user == user:
+                            joinable = False
+                    
+                    if joinable:
+                        games[id].players.append(Player(user))
+                        embed.description = await self.player_list(games[id].players)
+                        await lobby_message.edit(embed=embed)
 
                 # If the lobby is full
                 elif (
@@ -303,6 +323,9 @@ class Uno(commands.Cog):
                         ctx,
                         "You can't kick yourself, wait for someone to join before you try that",
                     )
+
+                elif reaction.emoji == "⚙️":
+                    await self.settings_gui(ctx, id)
 
                 # If close the lobby
                 elif reaction.emoji == "🛑":
@@ -348,7 +371,7 @@ class Uno(commands.Cog):
                 "reaction_add", timeout=60, check=check
             )
             if reaction.emoji in list(num_emoji.values()):
-                offender = games[id].players[emoji_num[reaction.emoji]]
+                offender = games[id].players[emoji_num[reaction.emoji]].user
                 # Add the user to the kick list
                 games[id].kick_list.append(offender)
                 # Remove the user from the lobby
@@ -367,6 +390,151 @@ class Uno(commands.Cog):
                 kick_message,
             )
             return None
+
+    async def settings_gui(self, ctx, id):
+        embed = discord.Embed(title="**Settings Menu**", description="Loading...")
+        settings_message = await ctx.send(embed=embed)
+
+        setting = True
+        while setting:
+            deck = None
+            if games[id].settings["decktype"] == "single":
+                deck = "Single"
+            elif games[id].settings["decktype"] == "double":
+                deck = "Double"
+            elif games[id].settings["decktype"] == "probability":
+                deck = "Probability"
+
+            bluffing = None
+            if games[id].settings["bluffing"]:
+                bluffing = "On"
+            else:
+                bluffing = "Off"
+
+            embed.description = f"""<:back:831717987979493436> Deck Type: {deck}
+            <:action_plus4:831629944055398431> Bluffing: {bluffing}"""
+            await settings_message.edit(embed=embed)
+
+            await settings_message.add_reaction("<:back:831717987979493436>")
+            await settings_message.add_reaction("<:action_plus4:831629944055398431>")
+            await settings_message.add_reaction("🛑")
+
+            def settings_check(reaction, user):
+                return (
+                    user == ctx.author
+                    and str(reaction.emoji)
+                    in [
+                        "<:back:831717987979493436>",
+                        "<:action_plus4:831629944055398431>",
+                        "🛑",
+                    ]
+                ) and reaction.message == settings_message
+
+            try:
+                reaction, user = await self.bot.wait_for(
+                    "reaction_add", timeout=60, check=settings_check
+                )
+                if reaction.emoji == "🛑":
+                    await settings_message.delete()
+                    setting = False
+
+                elif reaction.emoji.name == "back":
+                    deck_embed = discord.Embed(
+                        title="**Deck Settings**",
+                        description="""Which deck would you like the play with?
+
+                        1️⃣: Single deck
+                        2️⃣: Double deck""",
+                        # ♾️: Probability Deck""",
+                    )
+                    deck_message = await ctx.send(embed=deck_embed)
+
+                    await deck_message.add_reaction("1️⃣")
+                    await deck_message.add_reaction("2️⃣")
+                    # await deck_message.add_reaction("♾️")
+                    await deck_message.add_reaction("🛑")
+
+                    def deck_check(reaction, user):
+                        return (
+                            user == ctx.author
+                            # and str(reaction.emoji) in ["1️⃣", "2️⃣", "♾️", "🛑"]
+                            and str(reaction.emoji) in ["1️⃣", "2️⃣", "🛑"]
+                        ) and reaction.message == deck_message
+
+                    try:
+                        reaction, user = await self.bot.wait_for(
+                            "reaction_add", timeout=60, check=deck_check
+                        )
+
+                        if reaction.emoji == "1️⃣":
+                            games[id].settings["decktype"] = "single"
+                        elif reaction.emoji == "2️⃣":
+                            games[id].settings["decktype"] = "double"
+                        # elif reaction.emoji == "♾️":
+                        #     games[id].settings["decktype"] = "probability"
+                        elif reaction.emoji == "🛑":
+                            pass
+                        
+                        await deck_message.delete()
+
+                    except asyncio.TimeoutError:
+                        await error(
+                            ctx,
+                            "Host took to long to change the settings, closing the menu...",
+                            deck_message,
+                        )
+
+                elif reaction.emoji.name == "action_plus4":
+                    bluff_embed = discord.Embed(
+                        title="**Deck Settings**",
+                        description="Should bluffing be enabled?",
+                    )
+                    bluff_message = await ctx.send(embed=bluff_embed)
+
+                    await bluff_message.add_reaction("<:YAY:824942140999598151>")
+                    await bluff_message.add_reaction("<:NAY:824942147992158218>")
+                    await bluff_message.add_reaction("🛑")
+
+                    def bluff_check(reaction, user):
+                        return (
+                            user == ctx.author
+                            and str(reaction.emoji)
+                            in [
+                                "<:YAY:824942140999598151>",
+                                "<:NAY:824942147992158218>",
+                                "♾️",
+                                "🛑",
+                            ]
+                        ) and reaction.message == bluff_message
+
+                    try:
+                        reaction, user = await self.bot.wait_for(
+                            "reaction_add", timeout=60, check=bluff_check
+                        )
+
+                        if reaction.emoji.name == "YAY":
+                            games[id].settings["bluffing"] = True
+                        elif reaction.emoji.name == "NAY":
+                            games[id].settings["bluffing"] = False
+                        elif reaction.emoji == "🛑":
+                            pass
+                        
+                        await bluff_message.delete()
+
+                    except asyncio.TimeoutError:
+                        await error(
+                            ctx,
+                            "Host took to long to change the settings, closing the menu...",
+                            bluff_message,
+                        )
+
+            except asyncio.TimeoutError:
+                await error(
+                    ctx,
+                    "Host took to long to change the settings, closing the menu...",
+                    settings_message,
+                )
+                setting = False
 
     async def player_list(self, players):
         player_list = f"**Players**: `{len(players)}/8`"
@@ -395,7 +563,9 @@ class Uno(commands.Cog):
         cleanup = []
         # Create the category for the game
         overwrites = {
-            avo_cult.default_role: discord.PermissionOverwrite(read_messages=True, send_messages=False),
+            avo_cult.default_role: discord.PermissionOverwrite(
+                read_messages=True, send_messages=False
+            ),
             self.bot.user: discord.PermissionOverwrite(send_messages=True),
         }
         game_category = await avo_cult.create_category(
@@ -465,13 +635,12 @@ class Uno(commands.Cog):
         await update_status(
             status_message,
             status_embed,
-            games[id].s_channel,
             player_messages,
             player_embeds,
             current_action,
         )
 
-        games[id].deck = Deck("single")
+        games[id].deck = Deck(games[id].settings["decktype"])
         await games[id].deck.initialize()
 
         # Shuffle the deck, update the message because why not
@@ -479,7 +648,6 @@ class Uno(commands.Cog):
         await update_status(
             status_message,
             status_embed,
-            games[id].s_channel,
             player_messages,
             player_embeds,
             current_action,
@@ -492,7 +660,6 @@ class Uno(commands.Cog):
         await update_status(
             status_message,
             status_embed,
-            games[id].s_channel,
             player_messages,
             player_embeds,
             current_action,
@@ -521,43 +688,33 @@ class Uno(commands.Cog):
             card = top_of_deck
             checking_deck = False
 
-        if card.number == "plus2":
-            await post(
-                id=id,
-                title="Action",
-                description=f"was a +2. Skipped {games[id].players[await next_player_index(id)].user.display_name}'s turn",
-                current_turn=games[id].current_turn,
-                private=False,
-            )
-            await self.draw(id, await next_player_index(id), True)
-            await self.draw(id, await next_player_index(id), True)
-
         if card.number == "wild":
             color_message = await post(
                 id=id,
                 title="Action",
                 description="is picking a new color",
                 current_turn=await next_player_index(id),
-                private=True,
-                private_description="are picking a new color.\nReact with a color."
+                type=0,
+                private_description="are picking a new color.\nReact with a color.",
             )
             await color_message.add_reaction("<:red_wild:832339513988481024>")
             await color_message.add_reaction("<:blue_wild:832339514063323167>")
             await color_message.add_reaction("<:green_wild:832339513639829517>")
             await color_message.add_reaction("<:yellow_wild:832339513791479870>")
 
-            def check(reaction, user):
-                return user == games[id].players[next_player_index(id)].user and str(
+            async def check(reaction, user):
+                return user == games[id].players[await next_player_index(id)].user and str(
                     reaction.emoji
                 ) in [
                     "<:red_wild:832339513988481024>",
                     "<:blue_wild:832339514063323167>",
                     "<:green_wild:832339513639829517>",
                     "<:yellow_wild:832339513791479870>",
-                    ]
+                ]
+
             try:
                 reaction, user = await self.bot.wait_for(
-                    "reaction_add", timeout=60.0, check=check
+                    "reaction_add", timeout=60.0, check=await check
                 )
                 if reaction.emoji.name == "red_wild":
                     card.color = "red"
@@ -570,7 +727,7 @@ class Uno(commands.Cog):
 
             except asyncio.TimeoutError:
                 card.color = "red"
-            
+
             games[id].deck.cards.pop(0)
             games[id].deck.cards.insert(0, card)
 
@@ -579,10 +736,22 @@ class Uno(commands.Cog):
                 title="Action",
                 description=f"picked {card.color}. {await get_emoji(card)}",
                 current_turn=next_player_index(id),
-                private=True,
+                type=0,
             )
-        
-        games[id].current_turn = 0
+
+            games[id].current_turn = 0
+
+        if card.number == "plus2":
+            await post(
+                id=id,
+                title="Action",
+                description=f"The first card was a +2.",
+                no_name=True,
+                type=1,
+            )
+            await self.draw(id, await next_player_index(id), True)
+            await self.draw(id, await next_player_index(id), True)
+            games[id].current_turn = 1
 
         if card.number == "reverse":
             if not (len(games[id].players) == 2):
@@ -590,29 +759,29 @@ class Uno(commands.Cog):
                 await post(
                     id=id,
                     title="Action",
-                    description="was a reverse.",
-                    current_turn=games[id].current_turn,
-                    private=False,
+                    description="The first card was a reverse.",
+                    no_name=True,
+                    type=1,
                 )
             else:
-                games[id].current_turn = 1
                 await post(
                     id=id,
                     title="Action",
-                    description=f"was a reverse. But there's only two players.\nSkipped {games[id].players[await next_player_index(id)].user.display_name}'s turn",
-                    current_turn=games[id].current_turn,
-                    private=False,
+                    description=f"The first card was a reverse. But there's only two players.\nSkipped {games[id].players[await next_player_index(id)].user.display_name}'s turn",
+                    no_name=True,
+                    type=1,
                 )
+                games[id].current_turn = 1
 
         if card.number == "skip":
-            games[id].current_turn = 1
             await post(
                 id=id,
                 title="Action",
-                description=f"was a skip. Skipped {games[id].players[await next_player_index(id)].user.display_name}'s turn",
-                current_turn=games[id].current_turn,
-                private=False,
+                description=f"The first card was a skip. Skipped {games[id].players[await next_player_index(id)].user.display_name}'s turn",
+                no_name=True,
+                type=1,
             )
+            games[id].current_turn = 1
 
         while True:
             current_action = (
@@ -622,20 +791,25 @@ class Uno(commands.Cog):
             top_of_deck_display = f"Top of deck: {await get_emoji(top_of_deck)}"
 
             await hand_display(
-                status_embed, games[id].players, games[id].reversed, public=games[id].h_channels
+                status_embed,
+                games[id].players,
+                games[id].reversed,
+                public=games[id].h_channels,
             )
             # Make and send the embeds that go in each "your-hand" channel
             for n in range(
                 len(games[id].players)
             ):  # N is the index of the player who's hand is being built
                 await hand_display(
-                    player_embeds[n], games[id].players, games[id].reversed, shown_player=n
+                    player_embeds[n],
+                    games[id].players,
+                    games[id].reversed,
+                    shown_player=n,
                 )
 
             await update_status(
                 status_message,
                 status_embed,
-                games[id].s_channel,
                 player_messages,
                 player_embeds,
                 current_action + "\n" + top_of_deck_display,
@@ -645,7 +819,9 @@ class Uno(commands.Cog):
             turn_notif = (
                 await games[id]
                 .h_channels[games[id].current_turn]
-                .send(f"{games[id].players[games[id].current_turn].user.mention} it's your turn.")
+                .send(
+                    f"{games[id].players[games[id].current_turn].user.mention} it's your turn."
+                )
             )
             playable_cards = []
             playable_emojis = []
@@ -666,15 +842,18 @@ class Uno(commands.Cog):
             # Otherwise let the player play a card
             else:
                 # React with the playable cards to the Your Hand embed 832339513639829516
-                await player_messages[games[id].current_turn].add_reaction("<:draw:832339513639829516>")
+                await player_messages[games[id].current_turn].add_reaction(
+                    "<:draw:832339513639829516>"
+                )
                 for emoji in playable_emojis:
                     await player_messages[games[id].current_turn].add_reaction(emoji)
 
                 def check(reaction, user):
-                    return (
-                        user == games[id].players[games[id].current_turn].user
-                        and str(reaction.emoji) in playable_emojis + ["<:draw:832339513639829516>"]
-                    )
+                    return user == games[id].players[
+                        games[id].current_turn
+                    ].user and str(reaction.emoji) in playable_emojis + [
+                        "<:draw:832339513639829516>"
+                    ]
 
                 try:
                     # Wait for the reaction
@@ -686,7 +865,8 @@ class Uno(commands.Cog):
                     else:
                         # Remove the selected card from the hand
                         card, hand = await pop_card(
-                            reaction.emoji.name, games[id].players[games[id].current_turn].hand
+                            reaction.emoji.name,
+                            games[id].players[games[id].current_turn].hand,
                         )
                         games[id].players[games[id].current_turn].hand = hand
                         # Play the card
@@ -700,21 +880,23 @@ class Uno(commands.Cog):
             # Check if someone just won
             # print(games[id].players[current_turn].hand)
             if games[id].players[games[id].current_turn].hand == []:
-                current_action = (
-                    f"{games[id].players[games[id].current_turn].user.display_name} has won!"
-                )
+                current_action = f"{games[id].players[games[id].current_turn].user.display_name} has won!"
                 break
 
             # Increment current_turn
-            if games[id].deck.cards[0].number in ["skip", "plus2", "plus4"]:
+            # if games[id].deck.cards[0].number in ["skip", "plus2", "plus4"]:
+            #     games[id].current_turn = await next_player_index(id)
+            #     games[id].current_turn = await next_player_index(id)
+            # elif games[id].deck.cards[0].number == "reverse" and (
+            #     len(games[id].players) == 2
+            # ):
+            if games[id].skipping:
                 games[id].current_turn = await next_player_index(id)
                 games[id].current_turn = await next_player_index(id)
-            elif games[id].deck.cards[0].number == "reverse" and (len(games[id].players) == 2):
-                games[id].current_turn = await next_player_index(id)
-                games[id].current_turn = await next_player_index(id)
+                games[id].skipping = False
             else:
                 games[id].current_turn = await next_player_index(id)
-            
+
             # Delete old messages
             await turn_notif.delete()
             status_embed.clear_fields()
@@ -766,16 +948,25 @@ class Uno(commands.Cog):
 
         # Clean up the channels when we're done and post results
         embed = discord.Embed(
-            title="Results", description=f"{top_of_deck_display}\n{current_action}", color=discord.Color(0xFFFF00)
+            title="Results",
+            description=f"{current_action}",
+            color=discord.Color(0xFFFF00),
         )
         embed.set_thumbnail(url="https://i.imgur.com/iRPiwm3.png")
-        await hand_display(embed, games[id].players, games[id].reversed, shown_player=-1)
+        await hand_display(
+            embed, games[id].players, games[id].reversed, shown_player=-1
+        )
         await ctx.send(embed=embed)
         for n in cleanup:
             await n.delete()
 
-    
-    async def draw(self, id: int, current_turn: int, action: bool, top_of_deck: Card = None,):
+    async def draw(
+        self,
+        id: int,
+        current_turn: int,
+        action: bool,
+        top_of_deck: Card = None,
+    ):
         card = await games[id].deck.draw()
 
         # If the card the player pulled is playable
@@ -790,7 +981,7 @@ class Uno(commands.Cog):
                 title="Draw",
                 description="drew a card. <:back:831717987979493436>",
                 current_turn=current_turn,
-                private=True,
+                type=0,
                 private_description=f"drew a card. {await get_emoji(card)}\n\n<:play:832339513925042186> Play the card.\n<:keep:832339513786761257> Keep the card.",
             )
             await drew_message.add_reaction("<:play:832339513925042186>")
@@ -827,23 +1018,22 @@ class Uno(commands.Cog):
                 title="Draw",
                 description="drew a card. <:back:831717987979493436>",
                 current_turn=current_turn,
-                private=True,
+                type=0,
                 private_description=f"drew a card. {await get_emoji(card)}",
             )
             games[id].players[current_turn].hand.append(card)
 
-
     # Play a card
     # Presense of current_turn indicates that this is a normal circumstance and that post isn't handled elsewhere
     async def play_card(self, id: int, card, current_turn: int = None):
-        
+
         if current_turn != None:
             await post(
                 id=id,
                 title="Play",
                 description=f"played a card. {await get_emoji(card)}",
                 current_turn=current_turn,
-                private=True,
+                type=0,
             )
 
         if card.number == "reverse":
@@ -854,29 +1044,30 @@ class Uno(commands.Cog):
                     title="Action",
                     description="played a reverse.",
                     current_turn=current_turn,
-                    private=True,
+                    type=0,
                 )
             else:
-                # Action is handled when current_turn is incremented
+                games[id].skipping = True
                 await post(
                     id=id,
                     title="Action",
                     description=f"skipped {games[id].players[await next_player_index(id)].user.display_name}'s turn",
                     current_turn=current_turn,
-                    private=True,
+                    type=0,
                 )
 
         if card.number == "skip":
-            # Action is handled when current_turn is incremented
+            games[id].skipping = True
             await post(
                 id=id,
                 title="Action",
                 description=f"skipped {games[id].players[await next_player_index(id)].user.display_name}'s turn",
                 current_turn=current_turn,
-                private=True,
+                type=0,
             )
 
         if card.number == "plus2":
+            games[id].skipping = True
             await self.draw(id, await next_player_index(id), True)
             await self.draw(id, await next_player_index(id), True)
 
@@ -886,8 +1077,8 @@ class Uno(commands.Cog):
                 title="Action",
                 description="is picking a new color",
                 current_turn=current_turn,
-                private=True,
-                private_description="are picking a new color.\nReact with a color."
+                type=0,
+                private_description="are picking a new color.\nReact with a color.",
             )
             await color_message.add_reaction("<:red_wild:832339513988481024>")
             await color_message.add_reaction("<:blue_wild:832339514063323167>")
@@ -902,7 +1093,8 @@ class Uno(commands.Cog):
                     "<:blue_wild:832339514063323167>",
                     "<:green_wild:832339513639829517>",
                     "<:yellow_wild:832339513791479870>",
-                    ]
+                ]
+
             try:
                 reaction, user = await self.bot.wait_for(
                     "reaction_add", timeout=60.0, check=check
@@ -924,7 +1116,7 @@ class Uno(commands.Cog):
                 title="Action",
                 description=f"picked {card.color}. {await get_emoji(card)}",
                 current_turn=current_turn,
-                private=True,
+                type=0,
             )
 
         if card.number == "plus4":
@@ -933,8 +1125,8 @@ class Uno(commands.Cog):
                 title="Action",
                 description="is picking a new color",
                 current_turn=current_turn,
-                private=True,
-                private_description="are picking a new color.\nReact with a color."
+                type=0,
+                private_description="are picking a new color.\nReact with a color.",
             )
             await color_message.add_reaction("<:red_plus4:832498256700637224>")
             await color_message.add_reaction("<:blue_plus4:832498256399171615>")
@@ -949,7 +1141,8 @@ class Uno(commands.Cog):
                     "<:blue_plus4:832498256399171615>",
                     "<:green_plus4:832498256822665236>",
                     "<:yellow_plus4:832498256563011586>",
-                    ]
+                ]
+
             try:
                 reaction, user = await self.bot.wait_for(
                     "reaction_add", timeout=60.0, check=check
@@ -971,51 +1164,145 @@ class Uno(commands.Cog):
                 title="Action",
                 description=f"picked {card.color}. {await get_emoji(card)}",
                 current_turn=current_turn,
-                private=True,
+                type=0,
             )
 
-            await self.draw(id, await next_player_index(id), True)
-            await self.draw(id, await next_player_index(id), True)
-            await self.draw(id, await next_player_index(id), True)
-            await self.draw(id, await next_player_index(id), True)
+            if games[id].settings["bluffing"]:
+                bluff_message = await post(
+                    id=id,
+                    title="Bluff",
+                    description=f"Do you want to challenge {games[id].players[current_turn].user.display_name}'s bluff?",
+                    current_turn=await next_player_index(id),
+                    type=2,
+                    no_name=True,
+                )
+
+                await bluff_message.add_reaction("<:YAY:824942140999598151>")
+                await bluff_message.add_reaction("<:NAY:824942147992158218>")
+
+                def check(reaction, user):
+                    return (
+                        reaction.message == bluff_message
+                        and not user.bot
+                        and str(reaction.emoji)
+                        in ["<:YAY:824942140999598151>", "<:NAY:824942147992158218>"]
+                    )
+
+                try:
+                    reaction, user = await self.bot.wait_for(
+                        "reaction_add", timeout=20.0, check=check
+                    )
+
+                    if reaction.emoji.name == "YAY":
+                        hand_message = await post(
+                            id=id,
+                            title="Bluff",
+                            description=f"""
+                            {games[id].players[current_turn].user.display_name} is showing you his hand\n
+                            {await hand_builder(games[id].players[current_turn].hand, False)}
+                            """,
+                            current_turn=await next_player_index(id),
+                            type=2,
+                            no_name=True,
+                        )
+                        await asyncio.sleep(3)
+                        await hand_message.delete()
+
+                        bluffing = None
+                        for card in games[id].players[current_turn].hand:
+                            if card.color == games[id].deck.cards[0].color:
+                                if games[id].deck.cards[0].color != "action":
+                                    bluffing = True
+
+                        if bluffing:
+                            await post(
+                                id=id,
+                                title="Action",
+                                description=f"challendged {games[id].players[current_turn].user.display_name}'s bluff and succeed!",
+                                current_turn=await next_player_index(id),
+                                type=0,
+                            )
+                            for n in range(4):
+                                await self.draw(id, current_turn, True)
+                        else:
+                            games[id].skipping = True
+                            await post(
+                                id=id,
+                                title="Action",
+                                description=f"challendged {games[id].players[current_turn].user.display_name}'s bluff and failed...",
+                                current_turn=await next_player_index(id),
+                                type=0,
+                            )
+                            for n in range(6):
+                                await self.draw(id, await next_player_index(id), True)
+
+                    else:
+                        games[id].skipping = True
+                        for n in range(4):
+                            await self.draw(id, await next_player_index(id), True)
+
+                except asyncio.TimeoutError:
+                    games[id].skipping = True
+                    for n in range(4):
+                        await self.draw(id, await next_player_index(id), True)
+            else:
+                games[id].skipping = True
+                for n in range(4):
+                    await self.draw(id, await next_player_index(id), True)
 
         # Add the card to the deck
         await games[id].deck.add(card)
 
 
-async def next_player_index(id):
-    if not games[id].reversed:
-        if games[id].current_turn + 1 == len(games[id].players):
-            return 0
+async def next_player_index(id, backwards: bool = False):
+    if not backwards:
+        if not games[id].reversed:
+            if games[id].current_turn + 1 == len(games[id].players):
+                return 0
+            else:
+                return games[id].current_turn + 1
         else:
-            return games[id].current_turn + 1
+            if games[id].current_turn - 1 == -1:
+                return len(games[id].players) - 1
+            else:
+                return games[id].current_turn - 1
     else:
-        if games[id].current_turn - 1 == -1:
-            return len(games[id].players) - 1
+        if games[id].reversed:
+            if games[id].current_turn + 1 == len(games[id].players):
+                return 0
+            else:
+                return games[id].current_turn + 1
         else:
-            return games[id].current_turn - 1
+            if games[id].current_turn - 1 == -1:
+                return len(games[id].players) - 1
+            else:
+                return games[id].current_turn - 1
+
 
 # After an something happens, post a message in #status and the #your-hand channels
 async def post(
     id: int,
     title: str,
     description: str,
-    current_turn: int,
-    private: bool,
+    type: int,
+    current_turn: int = None,
+    no_name: bool = False,
     private_description: str = None,
 ):
     thumbnail = None
-    if current_turn == -1:
-        name = "The first card"
+    if no_name:
+        name = ""
         thumbnail = "https://i.imgur.com/iRPiwm3.png"
     else:
-        name = games[id].players[current_turn].user.display_name
+        name = games[id].players[current_turn].user.display_name + " "
         thumbnail = games[id].players[current_turn].user.avatar_url
-    embed = discord.Embed(title=title, description=f"{name} {description}")
+    embed = discord.Embed(title=title, description=f"{name}{description}")
     embed.set_thumbnail(url=thumbnail)
-    await games[id].s_channel.send(embed=embed)
 
-    if private:
+    # Send to every hand channel and a unique to current_hand
+    if type == 0:
+        await games[id].s_channel.send(embed=embed)
+
         for channel in games[id].h_channels:
             # Exclude the current player's channel in order to send them a personalized message
             if channel == games[id].h_channels[current_turn]:
@@ -1031,9 +1318,20 @@ async def post(
         embed.set_thumbnail(url=games[id].players[current_turn].user.avatar_url)
         return await games[id].h_channels[current_turn].send(embed=embed)
 
-    else:
+    # Same for every channel
+    elif type == 1:
+        await games[id].s_channel.send(embed=embed)
+
         for channel in games[id].h_channels:
             await channel.send(embed=embed)
+
+    # Only send to a specific user
+    elif type == 2:
+        for channel in games[id].h_channels:
+            if channel == games[id].h_channels[current_turn]:
+                return await channel.send(embed=embed)
+            else:
+                pass
 
 
 # Find a the card in a hand from given an emoji. Remove the card from that hand and return both the card and the new hand
@@ -1072,7 +1370,7 @@ async def hand_display(
         if public != None:
             embed.add_field(
                 name=f"{arrow_emoji} {players[n].user.display_name} ({len(players[n].hand)} Cards)",
-                value=await hand_builder(players[n].hand, True) + public[n].mention,
+                value=await hand_builder(players[n].hand, True),
                 inline=False,
             )
         elif n == shown_player or shown_player == -1:
@@ -1097,11 +1395,19 @@ async def hand_builder(hand: list, hidden: bool):
         return "Winner"
     elif hidden:
         for card in hand:
-            hand_string = hand_string + "<:back:831717987979493436>"
+            if len(hand_string + "<:back:831717987979493436>") >= 1021:
+                hand_string = hand_string + "..."
+                break
+            else:
+                hand_string = hand_string + "<:back:831717987979493436>"
     else:
         hand.sort(key=sort_key)
         for card in hand:
-            hand_string = hand_string + emoji_colors[card.color][card.number]
+            if len(hand_string + emoji_colors[card.color][card.number]) >= 1021:
+                hand_string = hand_string + "..."
+                break
+            else:
+                hand_string = hand_string + emoji_colors[card.color][card.number]
     return hand_string
 
 
@@ -1114,7 +1420,6 @@ def sort_key(card):
 async def update_status(
     s_message: discord.Message,
     s_embed: discord.Embed,
-    s_channel: discord.TextChannel,
     p_messages: list,
     p_embeds: list,
     message: str,
@@ -1122,7 +1427,7 @@ async def update_status(
     s_embed.description = message
     await s_message.edit(embed=s_embed)
     for n in range(len(p_embeds)):
-        p_embeds[n].description = message + "\n" + s_channel.mention
+        p_embeds[n].description = message
         await p_messages[n].edit(embed=p_embeds[n])
 
     # ===============#
@@ -1168,18 +1473,21 @@ class Deck:
         self.cards = []
 
     async def initialize(self):
-        if self.type == "single" or "probability":
+        if self.type == "single":
             await populate(self.cards)
         elif self.type == "double":
             await populate(self.cards)
             await populate(self.cards)
+        elif self.type == "probability":
+            await populate(self.cards)
+            self.cards.insert(0, self.draw())
 
     async def shuffle(self):
         random.shuffle(self.cards)
 
     async def draw(self):
-        if self.type == "Probability":
-            return self.cards[random.randint(0, 107)]
+        if self.type == "probability":
+            return self.cards[random.randint(1, 107)]
         else:
             card = self.cards.pop()
             if card.number == "wild":
@@ -1189,11 +1497,11 @@ class Deck:
             return card
 
     async def add(self, card):
-        if self.type != "Probability":
+        if self.type == "probability":
+            self.cards[0] = card
+        else:
             random.shuffle(self.cards)
             self.cards.insert(0, card)
-        else:
-            pass
 
 
 async def populate(cards):
