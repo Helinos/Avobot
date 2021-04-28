@@ -10,3 +10,6 @@ run.ps1
 main.db
 main backup.db
 uno backup.py
+
+# Songs for the radio
+music

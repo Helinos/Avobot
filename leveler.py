@@ -5,6 +5,7 @@ from discord.ext import commands
 from discord.ext.tasks import loop
 from discord_slash import cog_ext
 from discord_slash.utils.manage_commands import create_option
+from utils import error
 
 import random
 import asyncio
@@ -32,10 +33,14 @@ class Leveler(commands.Cog):
         self.xbox_live_id = 772648971758862346
         self.mobile_phone = None
         self.mobile_phone_id = 734290456979963975
-        self.chilling = None
-        self.chilling_id = 779488830893195325
-        self.freezing = None
-        self.freezing_id = 826191838901567538
+        self.dennys = None
+        self.dennys_id = 779488830893195325
+        self.wafflehouse = None
+        self.wafflehouse_id = 826191838901567538
+        self.ihop = None
+        self.ihop_id = 828485486666448906
+        self.radio = None
+        self.radio_id = 833262817859076109
         self.lvl_5 = None
         self.lvl_5_id = 684585066692739112
         self.booster = None
@@ -172,16 +177,20 @@ class Leveler(commands.Cog):
 
         self.xbox_live = self.bot.get_channel(self.xbox_live_id)
         self.mobile_phone = self.bot.get_channel(self.mobile_phone_id)
-        self.chilling = self.bot.get_channel(self.chilling_id)
-        self.freezing = self.bot.get_channel(self.freezing_id)
+        self.dennys = self.bot.get_channel(self.dennys_id)
+        self.wafflehouse = self.bot.get_channel(self.wafflehouse_id)
+        self.ihop = self.bot.get_channel(self.ihop_id)
+        self.radio = self.bot.get_channel(self.radio_id)
         self.lvl_5 = self.bot.get_channel(self.lvl_5_id)
         self.booster = self.bot.get_channel(self.booster_id)
 
         self.voice_channels = [
             self.xbox_live,
             self.mobile_phone,
-            self.chilling,
-            self.freezing,
+            self.dennys,
+            self.wafflehouse,
+            self.ihop,
+            self.radio,
             self.lvl_5,
             self.booster,
         ]
@@ -236,12 +245,18 @@ class Leveler(commands.Cog):
         ],
     )
     async def level_slash(self, ctx, member: discord.Member = None):
-        await self._level(ctx, member)
+        if ctx.channel.id == 698795649054933032:
+            await self._level(ctx, member)
+        else:
+            await error(ctx, f"You cannot do that command here")
 
     @commands.command()
     async def level(self, ctx, member: discord.Member = None):
-        await ctx.trigger_typing()
-        await self._level(ctx, member)
+        if ctx.channel.id == 698795649054933032:
+            await ctx.trigger_typing()
+            await self._level(ctx, member)
+        else:
+            await error(ctx, f"You cannot do that command here")
 
     async def _level(self, ctx, member):
         if member == None:
@@ -333,12 +348,18 @@ class Leveler(commands.Cog):
         ],
     )
     async def exp_slash(self, ctx, member: discord.Member = None):
-        await self._exp(ctx, member)
+        if ctx.channel.id == 698795649054933032:
+            await self._exp(ctx, member)
+        else:
+            await error(ctx, f"You cannot do that command here")
 
     @commands.command()
     async def exp(self, ctx, member: discord.Member = None):
-        await ctx.trigger_typing()
-        await self._exp(ctx, member)
+        if ctx.channel.id == 698795649054933032:
+            await ctx.trigger_typing()
+            await self._exp(ctx, member)
+        else:
+            await error(ctx, f"You cannot do that command here")
 
     async def _exp(self, ctx, member):
         if member == None:
@@ -392,13 +413,19 @@ class Leveler(commands.Cog):
         ],
     )
     async def top_slash(self, ctx, page: int = 1):
-        await ctx.defer()
-        await self._top(ctx, page)
+        if ctx.channel.id == 698795649054933032:
+            await ctx.defer()
+            await self._top(ctx, page)
+        else:
+            await error(ctx, f"You cannot do that command here")
     
     @commands.command()
     async def top(self, ctx, page: int = 1):
-        await ctx.trigger_typing()
-        await self._top(ctx, page)
+        if ctx.channel.id == 698795649054933032:
+            await ctx.trigger_typing()
+            await self._top(ctx, page)
+        else:
+            await error(ctx, f"You cannot do that command here")
 
     async def _top(self, ctx, page):
         page -= 1

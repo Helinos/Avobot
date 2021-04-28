@@ -1,3 +1,4 @@
+from utils import error
 from database import Database
 
 import discord
@@ -39,12 +40,18 @@ class Economy(commands.Cog):
         ],
     )
     async def bal_slash(self, ctx, member: discord.Member = None):
-        await self._bal(ctx, member)
+        if ctx.channel.id == 698795649054933032:
+            await self._bal(ctx, member)
+        else:
+            await error(ctx, f"You cannot do that command here")
 
     @commands.command()
     async def bal(self, ctx, member: discord.Member = None):
-        await ctx.trigger_typing()
-        await self._bal(ctx, member)
+        if ctx.channel.id == 698795649054933032:
+            await ctx.trigger_typing()
+            await self._bal(ctx, member)
+        else:
+            await error(ctx, f"You cannot do that command here")
 
     async def _bal(self, ctx, member):
         if member == None:
@@ -88,12 +95,18 @@ class Economy(commands.Cog):
         description="Pick fresh Avocados and harvest their pits.",
     )
     async def harvest_slash(self, ctx):
-        await self._harvest(ctx)
+        if ctx.channel.id == 698795649054933032:
+            await self._harvest(ctx)
+        else:
+            await error(ctx, f"You cannot do that command here")
 
     @commands.command()
     async def harvest(self, ctx):
-        await ctx.trigger_typing()
-        await self._harvest(ctx)
+        if ctx.channel.id == 698795649054933032:
+            await ctx.trigger_typing()
+            await self._harvest(ctx)
+        else:
+            await error(ctx, f"You cannot do that command here")
 
     async def _harvest(self, ctx):
         user = ctx.author
@@ -101,11 +114,12 @@ class Economy(commands.Cog):
             prev_harvest_time = await database.retrieve(
                 "economy", "prev_harvest_time", user.id
             )
+            streak = await database.retrieve(
+                "economy", "streak", user.id
+            )
             since_harvest = int(time.time()) - int(prev_harvest_time)
             if since_harvest > 86400:
                 balance = await database.retrieve("economy", "balance", user.id)
-                if balance == None:
-                    balance = 0
                 new_balance = balance + 5
                 await ctx.send(
                     "You harvested your Avocado tree and earned 5 pits"
@@ -151,12 +165,18 @@ class Economy(commands.Cog):
         ],
     )
     async def pay_slash(self, ctx, user: discord.User, amount: int):
-        await self._pay(ctx, user, amount)
+        if ctx.channel.id == 698795649054933032:
+            await self._pay(ctx, user, amount)
+        else:
+            await error(ctx, f"You cannot do that command here")
 
     @commands.command()
     async def pay(self, ctx, user: discord.User, amount: int):
-        await ctx.trigger_typing()
-        await self._pay(ctx, user, amount)
+        if ctx.channel.id == 698795649054933032:
+            await ctx.trigger_typing()
+            await self._pay(ctx, user, amount)
+        else:
+            await error(ctx, f"You cannot do that command here")
 
     async def _pay(self, ctx, user: discord.User, amount: int):
 
@@ -226,13 +246,19 @@ class Economy(commands.Cog):
         ],
     )
     async def baltop_slash(self, ctx, page: int = 1):
-        await ctx.defer()
-        await self._baltop(ctx, page)
+        if ctx.channel.id == 698795649054933032:
+            await ctx.defer()
+            await self._baltop(ctx, page)
+        else:
+            await error(ctx, f"You cannot do that command here")
     
     @commands.command()
     async def baltop(self, ctx, page: int = 1):
-        await ctx.trigger_typing()
-        await self._baltop(ctx, page)
+        if ctx.channel.id == 698795649054933032:
+            await ctx.trigger_typing()
+            await self._baltop(ctx, page)
+        else:
+            await error(ctx, f"You cannot do that command here")
 
     async def _baltop(self, ctx, page):
         page -= 1

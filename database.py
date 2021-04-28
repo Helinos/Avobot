@@ -48,7 +48,7 @@ class Database():
                 )
             elif table == "economy":
                 await self.db.execute(
-                    f"INSERT INTO economy VALUES ({user_id}, 0, 0)"
+                    f"INSERT INTO economy VALUES ({user_id}, 0, 0, 0)"
                 )
             await self.db.commit()
             await cursor.close()

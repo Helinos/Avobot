@@ -3,6 +3,7 @@ from discord.errors import Forbidden
 from discord.ext import commands
 from discord.ext.tasks import loop
 from discord_slash import SlashCommand
+from utils import error
 
 import asyncio
 import sys
@@ -57,7 +58,7 @@ async def on_message(ctx):
         await reaction_report(ctx, ctx.author)
 
     # Relegate commands to #other-bots and #moderator-only
-    if ctx.channel.id in [698795649054933032, 557869986895495180]:
+    if ctx.channel.id in [698795649054933032, 557860634927169536]:
         await bot.process_commands(ctx)
     
     # Post the warning in #venting
@@ -150,12 +151,18 @@ async def reaction_report(message, reporter: discord.User, reported: discord.Use
     description="List the bot's commands.",
 )
 async def help_slash(ctx):
-    await _help(ctx)
+    if ctx.channel.id == 698795649054933032:
+        await _help(ctx)
+    else:
+        await error(ctx, f"You cannot do that command here")
 
 @bot.command()
 async def help(ctx):
-    await _help(ctx)
-    await ctx.trigger_typing()
+    if ctx.channel.id == 698795649054933032:
+        await _help(ctx)
+        await ctx.trigger_typing()
+    else:
+        await error(ctx, f"You cannot do that command here")
 
 async def _help(ctx):
     embed = discord.Embed(
@@ -164,10 +171,17 @@ async def _help(ctx):
         - **Exp** Display a user's EXP.
         - **Level** Display a user's current levels and progress.
         - **Top** Show the server's EXP leaderboard.
+
         - **Bal** Display the amount of pits in a user's sack.
         - **Harvest** Pick fresh Avocados and harvest their pits.
         - **Pay** Pay another user with pits.
         - **Baltop** Show the server's Balance leaderboard.
+
+        - **Ichi** Open a lobby for a game of ichi
+        
+        - **Station** Vote to change the Radio's current Station.
+        - **List** View the list of avaiable stations.
+        - **np** View the name of the song that's currently playing on the radio.
         """
     )
 
@@ -179,4 +193,5 @@ async def _help(ctx):
 bot.load_extension("leveler")
 bot.load_extension("economy")
 bot.load_extension("uno")
+bot.load_extension("radio")
 bot.run(str(sys.argv[1]))
